@@ -82,7 +82,6 @@
    [:div (use-style current-db-tools-style)
     (if (:is-remote db)
       [:<>
-       [button "Import"]
        [button "Copy Link"]
        [button "Remove"]]
       [:<>
@@ -91,7 +90,7 @@
        [button {:onClick #(if (= 1 (count all-dbs))
                             (js/alert "Can't remove last db from the list")
                             (do
-                              (dispatch [:db-picker/remove-db-from-list (:path db)])
+                              (dispatch [:db-picker/remove-db-from-list (:path db) (:is-remote db)])
                               (dispatch [:db-picker/delete-db (:path db)])))}
         "Delete"]])]))
 
@@ -132,16 +131,18 @@
                    [:<>
                     ;; Show active DB first
                     [:div (use-style current-db-area-style)
-                     [db-list-item {:db active-db
+                     [db-list-item {:db         active-db
                                     :is-current true
-                                    :key (:path active-db)}]
+                                    :key        (:path active-db)
+                                    :is-remote  (:is-remote active-db)}]
                      [current-db-tools {:db active-db} all-dbs]]
                     ;; Show all inactive DBs and a separator
                     (doall
                       (for [db inactive-dbs]
-                        [db-list-item {:db db
+                        [db-list-item {:db         db
                                        :is-current false
-                                       :key (:path db)}]))
+                                       :key        (:path db)
+                                       :is-remote  (:is-remote db)}]))
                     [:hr (use-style menu-separator-style)]
                     ;; Add DB control
                     [button {:on-click #(dispatch [:modal/toggle])}

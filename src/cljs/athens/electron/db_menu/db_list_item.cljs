@@ -61,7 +61,5 @@
       [db-list-item-content {:db db}]]
      [:button.body.button {:onClick
                            #(dispatch
-                              [:db-picker/select-new-db
-                               (:path db)
-                               @(subscribe [:db/synced])])}
+                              [:db-picker/select-new-db (:path db) @(subscribe [:db/synced]) (:is-remote db)])}
       [db-list-item-content {:db db}]])])

@@ -59,6 +59,11 @@
     (fn [db _]
       (:db-picker/all-dbs db)))
 
+  (rf/reg-sub
+    :db/is-remote?
+    (fn [db _]
+      (:db/is-remote? db)))
+
   ;; helper functions
 
   (defn get-db-name
@@ -86,7 +91,7 @@
 
   (rf/reg-event-fx
     :db-picker/add-new-db
-    (fn [{:keys [db]} [_ dbpath]]
+    (fn [{:keys [db]} [_ dbpath is-remote?]]
       "Add a new to db picker list.
        Can be invoked when a db is added, opened, moved, selected or removed.
        Update local storage value with the new db list"
@@ -96,12 +101,16 @@
                                dbpath)]
         (if duplicate?
           {:fx [[:dispatch [:alert/js (str "Database already in the list")]]]}
-          (let [dbname  (get-db-name dbpath)
-                newdb   {:path dbpath
-                         :name dbname}
+          (let [dbname  (if is-remote?
+                          ("Remote db") ;; Do we ask user to provide name also??
+                          (get-db-name dbpath))
+                newdb   {:path       dbpath
+                         :name       dbname
+                         :type       (if is-remote? :lan-party :fs) ;; Is this needed?
+                         :is-remote  is-remote?}
                 all-dbs (conj current-db-list newdb)]
             {:db       (assoc db :db-picker/all-dbs all-dbs)
-             :fx [[:dispatch [:local-storage/set-db-picker-list]]]})))))
+             :fx       [[:dispatch [:local-storage/set-db-picker-list]]]})))))
 
 
   (rf/reg-event-fx
@@ -111,29 +120,35 @@
        this link for discussion on how to serialize data to store"
       ;; https://stackoverflow.com/questions/67821181/how-to-set-and-get-a-vector-in-local-storage
       (let [current-db-list (:db-picker/all-dbs db)]
-        {:local-storage/set! ["db-picker/all-dbs" (pr-str current-db-list)]})))
+        {:fx [[:local-storage/set! ["db-picker/all-dbs" (pr-str current-db-list)]]]})))
 
   (rf/reg-event-fx
-    :local-storage/create-db-picker-list
+    :local-storage/update-db-picker-list
     (fn [{:keys [db]} _]
       "Check if local storage contains db-picker list.
        If not it means this is the first time opening Athens or local storage was
-       cleared, if this is the case we update db-picker list with the current running db."
-      (let [val                 (cljs.reader/read-string
-                                  (js/localStorage.getItem "db-picker/all-dbs"))
-            current-db-filepath (:db/filepath db)]
-        (if (nil? val)
-          {:fx [[:dispatch [:db-picker/add-new-db current-db-filepath]]]}
-          {:db (assoc db :db-picker/all-dbs val)}))))
+       cleared, if this is the case we update db-picker list with the current running db.
+       This event is dispatched whenever
+       - A new db is opened or added
+       - Athens is started"
+
+      (let [local-storage-db-list (read-string (js/localStorage.getItem "db-picker/all-dbs"))
+            is-remote?            (read-string (js/localStorage.getItem "db/is-remote?"))
+            current-db-filepath   (:db/filepath db)]
+        (if (nil? local-storage-db-list)
+          {:fx [[:dispatch [:db-picker/add-new-db current-db-filepath is-remote?]]]}
+          {:db (assoc db :db-picker/all-dbs local-storage-db-list)}))))
 
   (rf/reg-event-fx
     :db-picker/remove-db-from-list
-    (fn [{:keys [db]} [_ db-path]]
+    (fn [{:keys [db]} [_ db-path is-remote?]]
       "Remove the selected db from db-list. Update local storage value with the new db list"
       (let [current-db-list (:db-picker/all-dbs db)
             new-db-list     (into [] (filter
                                        (fn [db-list-item] (not= db-path (:path db-list-item)))
                                        current-db-list))]
+        (if is-remote?
+          {:fx [[:dispatch [:remote/client-disconnect!]]]})
         {:db       (assoc db :db-picker/all-dbs new-db-list)
          :fx [[:dispatch [:local-storage/set-db-picker-list]]]})))
 
@@ -141,24 +156,37 @@
   (rf/reg-event-fx
     :db-picker/move-db
     (fn [_ [_ previous-path new-path]]
-      "Move db from current location."
-      {:dispatch-n [[:db-picker/remove-db-from-list previous-path]
-                    [:db-picker/add-new-db new-path]]}))
+      "Move db from current location. This is only applicable to local dbs"
+      {:fx [[:dispatch-n [[:db-picker/remove-db-from-list previous-path false]
+                          [:db-picker/add-new-db new-path false]]]]}))
 
   (rf/reg-event-fx
     :db-picker/select-new-db
-    (fn [{:keys [db]} [_ db-path synced?]]
+    (fn [{:keys [db]} [_ db-path synced? selected-db-is-remote?]]
+      ;; TODO : Handle the case when the current db is a remote db
       "Select a new db from db list.
+      If current db is remote db and a new db is selected then need to close the connection
+      to current remote db.
+      If remote db is selected: Make this active db and start lan party
+      General :
+      If the selected db is a local db then:
       If the selected db is deleted from disk then show an alert describing the
       situation and remove this db from db list. Prevent selecting a db when sync
       is happening, instead show an alert describing the situation."
-      (let [file-exists? (and db-path (.existsSync fs db-path))]
+      (if (cljs.reader/read-string (js/localStorage.getItem "db/is-remote?"))
+        {:fx [[:dispatch [:remote/client-disconnect!]]]})
+      (if selected-db-is-remote?
         (cond
-          (and file-exists? synced?)        {:dispatch-n [[:db/update-filepath db-path]
-                                                          [:boot/desktop]]}
-          (and file-exists? (not synced?))  {:fx   [[:dispatch [:alert/js "Database is saving your changes, if you switch now your changes will not be saved"]]]}
-          :else                             {:dispatch-n [[:alert/js "This database does not exist, removing it from list"]
-                                                          [:db-picker/remove-db-from-list db-path]]}))))
+          (synced?) {:fx [[:dispatch-n [[:db/update-filepath      db-path true]
+                                        [:remote/client-connect!   db-path]]]]}
+          :else     {:fx [[:dispatch [:alert/js "Database is saving your changes, if you switch now your changes will not be saved"]]]})
+        (let [file-exists? (and db-path (.existsSync fs db-path))]
+          (cond
+            (and file-exists? synced?)        {:fx   [[:dispatch-n [[:db/update-filepath db-path false]
+                                                                    [:boot/desktop]]]]}
+            (and file-exists? (not synced?))  {:fx   [[:dispatch [:alert/js "Database is saving your changes, if you switch now your changes will not be saved"]]]}
+            :else                             {:fx   [[:dispatch-n [[:alert/js "This database does not exist, removing it from list"]
+                                                                    [:db-picker/remove-db-from-list db-path (:is-remote? db)]]]]})))))
 
   (rf/reg-event-fx
     :db-picker/delete-db
@@ -193,16 +221,20 @@
   (rf/reg-event-fx
     :local-storage/get-db-filepath
     [(rf/inject-cofx :local-storage "db/filepath")
-     #_(rf/inject-cofx :local-storage-map {:ls-key "db/remote-graph-conf"
-                                           :key    :remote-graph-conf})]
-    (fn [{:keys [local-storage remote-graph-conf]} _]
+     (rf/inject-cofx :local-storage-map {:ls-key "db/is-remote?"
+                                         :key    :is-remote})]
+    (fn [{:keys [local-storage is-remote?]} _]
+      "Dev athens and production athens use different instances of chromium, so they have different localstorages.
+       App startup assumes that if there is no filepath in localstorage, it is absolutely the first time athens has
+       been run, so it creates a new database at the default location, overwriting the existing database.
+       So, at startup, check for an index.transit file at the default location before creating a new database."
       (let [default-db-path (.resolve path utils/documents-athens-dir utils/DB-INDEX)]
         (cond
-          (some-> remote-graph-conf read-string :default?) {:dispatch [:start-socket]}
-          ;; No filepath in local storage, but an existing db suggests a dev chromium is running with a different local storage
-          ;; Short-circuit the first load and just use the existing DB
-          (and (nil? local-storage) (.existsSync fs default-db-path)) {:dispatch [:db/update-filepath default-db-path]}
-          :else {:dispatch [:db/update-filepath local-storage]}))))
+          is-remote?                             {:fx [[:dispatch-n [[:remote/client-connect! local-storage]
+                                                                     [:db/update-filepath     local-storage true]]]]}
+          (and (nil? local-storage)
+               (.existsSync fs default-db-path)) {:fx [[ :dispatch [:db/update-filepath default-db-path false]]]}
+          :else                                  {:fx [[:dispatch [:db/update-filepath local-storage false]]]}))))
 
 
   (rf/reg-event-fx
@@ -217,24 +249,24 @@
     (when (not (.existsSync fs dir))
       (.mkdirSync fs dir)))
 
-  ;; Documents/athens
-  ;; ├── images
-  ;; └── index.transit
 
-  ;; If new db is created add
-  ;; 1. This db to all-dbs list
-  ;; 2. Make this db active
   (rf/reg-event-fx
     :fs/create-new-db
     (fn []
+      "Documents/athens
+       ├── images\n
+       └── index.transit
+       If new local db is created add
+       1. This db to all-dbs list
+       2. Make this db active "
       (let [db-filepath (.resolve path utils/documents-athens-dir utils/DB-INDEX)
             db-images   (.resolve path utils/documents-athens-dir utils/IMAGES-DIR-NAME)]
         (create-dir-if-needed! utils/documents-athens-dir)
         (create-dir-if-needed! db-images)
         {:fs/write!  [db-filepath (dt/write-transit-str (d/empty-db db/schema))]
-         :dispatch-n [[:db/update-filepath db-filepath]
-                      [:transact athens-datoms/datoms]
-                      [:db-picker/add-new-db db-filepath]]})))
+         :dispatch-n [[:db/update-filepath   db-filepath false]
+                      [:transact             athens-datoms/datoms]
+                      [:db-picker/add-new-db db-filepath false]]})))
 
 
   (rf/reg-event-fx
@@ -325,7 +357,7 @@
                                                                                        db      (dt/read-transit-str read-db)]
                                                                                    (rf/dispatch [:fs/watch filepath])
                                                                                    (rf/dispatch [:reset-conn db])
-                                                                                   (rf/dispatch [:local-storage/create-db-picker-list]))
+                                                                                   (rf/dispatch [:local-storage/update-db-picker-list]))
                                                        :else (rf/dispatch [:fs/open-dialog])))}
 
                                      ;; remote graph

@@ -208,24 +208,30 @@
   :placeholder "Secret token"}]
 
 (defn join-remote-comp
-  []
-  (let [address (r/atom "")]
-    [:<>
-     [:div {:style {:width "100%" :margin-top "10px"}}
-      [:h5 "Remote address"]
-      [:div {:style           {:margin "5px 0"}
-             :display         "flex"
-             :justify-content "space-between"}]
-      [textinput/textinput {:style   {:flex-grow 1}
-                            :padding "5px"}
-       :type "text"
-       :value @address
-       :placeholder "Remote server address"
-       :on-change #(reset! address %)]]
-     [button {:primary  true
-              :style    {:margin-top "0.5rem"}
-              :on-click #(prn "Db MODAL")}
-      "Join"]]))
+  [state]
+  [:<>
+    [:div {:style {:width "100%" :margin-top "1rem"}}
+     [:h5 "Remote address"]
+     [:div {:style           {:margin "1rem 0"
+                              :width  "100%"}
+            :display         "flex"
+            :justify-content "space-between"}]
+     [textinput/textinput {:style   {:flex-grow 1
+                                     :width     "100%"}
+                           :padding "5px"
+                           :type "text"
+                           :value (:input @state)
+                           :placeholder "Remote server address"
+                           :on-change  #(swap! state assoc :input (js-event->val %))}]]
+    [button {:primary  true
+             :style    {:margin-top "1rem"}
+             ;; TODO Need to understand better what happens when we connect to remote db, this
+             ;; this is needed to understand what else is needs to be done when a connection is made
+             :on-click #((rf/dispatch [:remote/client-connect! (:input @state)])
+                         (rf/dispatch [:local-storage/update-db-picker-list])  ;; This is needed in case client connection resets the clients re-frame db
+                         (rf/dispatch [:db-picker/add-new-db   (:input @state) true])
+                         (rf/dispatch [:db/update-filepath     (:input @state) true]))}
+     "Join"]])
 
 
 (defn window
@@ -265,7 +271,7 @@
                                       [:span "Join"]]]
                                     (cond
                                       (= 2 (:tab-value @state))
-                                      [join-remote-comp]
+                                      [join-remote-comp state]
 
                                       (= 1 (:tab-value @state))
                                       [create-new-local state]

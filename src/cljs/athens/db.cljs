@@ -35,6 +35,7 @@
                                                "Socrates")}
 
                :db/filepath         nil
+               :db/is-remote?       nil
                :db/synced           true
                :db/mtime            nil
                :current-route       nil

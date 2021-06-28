@@ -31,9 +31,18 @@
 
 (reg-event-fx
   :db/update-filepath
-  (fn [{:keys [db]} [_ filepath]]
-    {:db (assoc db :db/filepath filepath)
+  (fn [{:keys [db]} [_ filepath is-remote?]]
+    {:fx                 [[:dispatch [:db/update-remote-status is-remote?]]]
+     :db                 (assoc db :db/filepath filepath)
      :local-storage/set! ["db/filepath" filepath]}))
+
+
+(reg-event-fx
+  :db/update-remote-status
+  (fn [{:keys [db]}[_ is-remote?]]
+    {:db                 (assoc db :db/is-remote is-remote?)
+     :local-storage/set! ["db/is-remote?" (pr-str is-remote?)]}))
+
 
 
 (reg-event-db
