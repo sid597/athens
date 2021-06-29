@@ -227,10 +227,9 @@
              :style    {:margin-top "1rem"}
              ;; TODO Need to understand better what happens when we connect to remote db, this
              ;; this is needed to understand what else is needs to be done when a connection is made
-             :on-click #((rf/dispatch [:remote/client-connect! (:input @state)])
-                         (rf/dispatch [:local-storage/update-db-picker-list])  ;; This is needed in case client connection resets the clients re-frame db
-                         (rf/dispatch [:db-picker/add-new-db   (:input @state) true])
-                         (rf/dispatch [:db/update-filepath     (:input @state) true]))}
+             :on-click #((rf/dispatch [:remote/connect! {:url (:input @state)}])
+                         (rf/dispatch [:db-picker/add-new-db   (:input @state)]))}
+
      "Join"]])
 
 
