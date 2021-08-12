@@ -331,6 +331,24 @@
       embed-id (str "-embed-" embed-id))))
 
 
+
+(defn get-prev-sib
+  [db uid block-order]
+  (let [prev-sib (d/q '[:find ?sib .
+                          :in $ % ?target-uid ?prev-sib-order
+                          :where
+                          (siblings ?target-uid ?sib)
+                          [?sib :block/order ?prev-sib-order]
+                          [?sib :block/uid ?uid]
+                          [?sib :block/children ?ch]]
+                       db
+                       rules uid
+                       block-order)
+        prev-sib-block (when-not (nil? prev-sib)
+                         (get-block db prev-sib))]
+    prev-sib-block))
+
+
 (defn same-parent?
   "Given a coll of uids, determine if uids are all direct children of the same parent."
   [db uids]
