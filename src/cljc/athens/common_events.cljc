@@ -147,14 +147,21 @@
   - `uid`       : `:block/uid` of block to save
   - `new-string`: new value for `:block/string`
   - `add-time?` : Should `:edit/time` for this block be transacted"
-  [last-tx uid new-string add-time?]
-  (let [event-id (gen-event-id)]
-    {:event/id      event-id
-     :event/last-tx last-tx
-     :event/type    :datascript/block-save
-     :event/args    {:uid        uid
-                     :new-string new-string
-                     :add-time?  add-time?}}))
+  ([last-tx uid new-string add-time?] (let [event-id (gen-event-id)]
+                                        {:event/id      event-id
+                                         :event/last-tx last-tx
+                                         :event/type    :datascript/block-save
+                                         :event/args    {:uid        uid
+                                                         :new-string new-string
+                                                         :add-time?  add-time?}}))
+  ([last-tx uid new-string]           (let [event-id (gen-event-id)]
+                                        {:event/id      event-id
+                                         :event/last-tx last-tx
+                                         :event/type    :datascript/block-save
+                                         :event/args    {:uid        uid
+                                                         :new-string new-string
+                                                         :add-time?  false}})))
+
 
 
 (defn build-new-block-event
@@ -177,14 +184,20 @@
   - `parent-uid`: `:block/uid` of parent block
   - `new-uid`  : new child's block uid
   - `add-time?`: Should `:edit/time` for this block be transacted"
-  [last-tx parent-uid new-uid add-time?]
-  (let [event-id (gen-event-id)]
-    {:event/id      event-id
-     :event/last-tx last-tx
-     :event/type    :datascript/add-child
-     :event/args    {:parent-uid parent-uid
-                     :new-uid    new-uid
-                     :add-time?  add-time?}}))
+  ([last-tx parent-uid new-uid add-time?] (let [event-id (gen-event-id)]
+                                            {:event/id      event-id
+                                             :event/last-tx last-tx
+                                             :event/type    :datascript/add-child
+                                             :event/args    {:parent-uid parent-uid
+                                                             :new-uid    new-uid
+                                                             :add-time?  add-time?}}))
+  ([last-tx parent-uid new-uid]           (let [event-id (gen-event-id)]
+                                            {:event/id      event-id
+                                             :event/last-tx last-tx
+                                             :event/type    :datascript/add-child
+                                             :event/args    {:parent-uid parent-uid
+                                                             :new-uid    new-uid
+                                                             :add-time?  false}})))
 
 
 (defn build-open-block-add-child-event
