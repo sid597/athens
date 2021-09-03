@@ -1,6 +1,7 @@
 # A base, just JVM
 FROM clojure:openjdk-16-lein
 
+RUN sudo apt-get install git
 RUN git clone https://github.com/athensresearch/athens.git
 #RUN mkdir -p /srv/athens/db
 WORKDIR /athens/
