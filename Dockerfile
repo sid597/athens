@@ -3,8 +3,9 @@ FROM openjdk:16
 
 RUN mkdir -p /srv/athens/db
 
+WORKDIR target
 # Copy from local working directory
-COPY target/athens-lan-party-standalone.jar /srv/athens/
+COPY athens-lan-party-standalone.jar /srv/athens/
 
 # Set athens as the working directory
 WORKDIR /srv/athens/
