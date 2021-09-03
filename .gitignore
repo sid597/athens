@@ -1,7 +1,7 @@
 /out/
 /resources/public/js/
 /resources/*.js
-/target/
+#/target/
 /*-init.clj
 /*.log
 

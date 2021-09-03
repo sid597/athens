@@ -3,7 +3,6 @@ FROM openjdk:16
 
 RUN mkdir -p /srv/athens/db
 
-# https://github.com/docker/for-mac/issues/1922#issuecomment-326205722
 # Copy from local working directory
 COPY target/athens-lan-party-standalone.jar /srv/athens/
 
