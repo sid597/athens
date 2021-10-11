@@ -1,5 +1,6 @@
 (ns athens.views.blocks.content
   (:require
+<<<<<<< Updated upstream
     [athens.config                        :as config]
     [athens.db                            :as db]
     [athens.electron                      :as electron]
@@ -16,6 +17,48 @@
     [komponentit.autosize                 :as autosize]
     [re-frame.core                        :as rf]
     [stylefy.core                         :as stylefy])
+=======
+<<<<<<< Updated upstream
+    [athens.common-db :as common-db]
+    [athens.common.utils :as utils]
+    [athens.config :as config]
+    [athens.db :as db]
+    [athens.electron.images :as images]
+    [athens.events.selection :as select-events]
+    [athens.parse-renderer :refer [parse-and-render]]
+    [athens.patterns :as patterns]
+=======
+    [athens.config :as config]
+    [athens.db :as db]
+    [athens.electron :as electron]
+    [athens.events.selection :as select-events]
+    [athens.parse-renderer :refer [parse-and-render]]
+>>>>>>> Stashed changes
+    [athens.style :as style]
+    [athens.subs.selection :as select-subs]
+    [athens.util :as util]
+    [athens.views.blocks.textarea-keydown :as textarea-keydown]
+<<<<<<< Updated upstream
+    [cljs.pprint :as pp]
+    [clojure.edn :as edn]
+    [clojure.set :as set]
+    [clojure.string :as str]
+    [clojure.walk :as walk]
+=======
+    [clojure.edn :as edn]
+    [clojure.set :as set]
+>>>>>>> Stashed changes
+    [garden.selectors :as selectors]
+    [goog.events :as goog-events]
+    [komponentit.autosize :as autosize]
+    [re-frame.core :as rf]
+<<<<<<< Updated upstream
+    [stylefy.core :as stylefy])
+=======
+    [stylefy.core :as stylefy]
+    [datascript.core :as d])
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
   (:import
     (goog.events
       EventType)))
@@ -254,6 +297,105 @@
     (when (and start-index end-index)
       (rf/dispatch [::select-events/set-items selection-order]))))
 
+
+(defn gen-block-uid
+  []
+  (subs (str (random-uuid)) 27))
+
+
+(defn text-to-blocks
+  [text uid root-order]
+  (let [;; Split raw text by line
+        lines       (->> (clojure.string/split-lines text)
+                         (filter (comp not clojure.string/blank?)))
+        ;; Count left offset
+        left-counts (->> lines
+                         (map #(re-find #"^\s*(-|\*)?" %))
+                         (map #(-> % first count)))
+        ;; Trim * - and whitespace
+        sanitize    (map (fn [x] (clojure.string/replace x #"^\s*(-|\*)?\s*" ""))
+                         lines)
+        ;; Generate blocks with tempids
+        blocks      (map-indexed (fn [idx x]
+                                   {:db/id        (dec (* -1 idx))
+                                    :block/string x
+                                    :block/open   true
+                                    :block/uid    (gen-block-uid)}) ; TODO(BUG): UID generation during resolution
+                                 sanitize)
+        top_uids    []
+        ;; Count blocks
+        n           (count blocks)
+        ;; Assign parents
+        parents     (loop [i   1
+                           res [(first blocks)]]
+                      (if (= n i)
+                        res
+                        ;; Nested loop: worst-case O(n^2)
+                        (recur (inc i)
+                               (loop [j (dec i)]
+                                 ;; If j is negative, that means the loop has been compared to every previous line,
+                                 ;; and there are no previous lines with smaller left-offsets, which means block i
+                                 ;; should be a root block.
+                                 ;; Otherwise, block i's parent is the first block with a smaller left-offset
+                                 (if (neg? j)
+                                   (do
+                                     (conj top_uids (nth blocks i))
+                                     (conj res (nth blocks i)))
+                                   (let [curr-count (nth left-counts i)
+                                         prev-count (nth left-counts j nil)]
+                                     (if (< prev-count curr-count)
+                                       (conj res {:db/id          (:db/id (nth blocks j))
+                                                  :block/children (nth blocks i)})
+                                       (recur (dec j)))))))))
+        ;; assign orders for children. order can be local or based on outer context where paste originated
+        ;; if local, look at order within group. if outer, use root-order
+        tx-data     (->> (group-by :db/id parents)
+                         ;; maps smaller than size 8 are ordered, larger are not https://stackoverflow.com/a/15500064
+                         (into (sorted-map-by >))
+                         (mapcat (fn [[_tempid blocks]]
+                                   (loop [order 0
+                                          res   []
+                                          data  blocks]
+                                     (let [{:block/keys [children] :as block} (first data)]
+                                       (cond
+                                         (nil? block) res
+                                         (nil? children) (let [new-res (conj res {:db/id          [:block/uid uid]
+                                                                                  :block/children (assoc block :block/order @root-order)})]
+                                                           (swap! root-order inc)
+                                                           (recur order
+                                                                  new-res
+                                                                  (next data)))
+                                         :else (recur (inc order)
+                                                      (conj res (assoc-in block [:block/children :block/order] order))
+                                                      (next data))))))))]
+    (cljs.pprint/pprint lines)
+    (println "top uids" top_uids)
+    tx-data))
+
+
+(def exa
+  "- {{[[DONE]]}} Local
+      - {{[[DONE]]}} To the block of an empty block
+      - {{[[DONE]]}} To the last block of a page
+          - {{[[DONE]]}} Copy a single block
+          - {{[[DONE]]}} Copy a block with children
+          - {{[[DONE]]}} If the block is empty then retract it
+      - {{[[DONE]]}} To any empty block in a page
+      - {{[[DONE]]}}  To any block with content in the page
+- {{[[DONE]]}}  To  a open block with children")
+
+
+(let [s (text-to-blocks exa
+                "special-uid"
+                (atom 0))]
+  (cljs.pprint/pprint s))
+
+(defonce nu (d/create-conn db/schema))
+
+(d/transact! nu [{:db/id          "special-id"
+                  :block/uid      "special-uid"
+                  :block/children []
+                  :block/string   ""}])
 
 ;; Event Handlers
 
