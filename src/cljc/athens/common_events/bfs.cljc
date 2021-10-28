@@ -21,6 +21,7 @@
   "Given internal representation (basically a tree) get individual blocks from the representation.
    Walk the tree in a bfs manner, extract the individual blocks and the parent-child relationship."
   [tree]
+  (println "individual blocks")
   (loop [res                   []
          ;; Why not add the parent in block data? I think it is easier to create the child-parent map
          ;; than to pass the current parent to subsequent recur
@@ -55,8 +56,8 @@
 
 
 (defn internal-repr->atomic-ops
-  "Takes the internal representation of a block and creates :block/new and :block/save atomic
-   events from it."
+  "Takes the internal representation of a block then,
+  For blocks creates `:block/new` and `:block/save` event and for page creates `:page/new` events from it."
   [db block-internal-representation parent-uid]
   (let [{block-uid    :block/uid
          block-string :block/string
@@ -78,32 +79,27 @@
     all-ops))
 
 
-(defn build-paste-op
-  "For blocks creates `:block/new` and `:block/save` event and for page creates `:page/new`
-   Arguments:
-   - `db` db value
-   - `uid` uid of the block where the internal representation needs to be pasted
-   - `internal-representation` of the pages/blocks selected"
+(defn paste-ops-from-internal-representation
+  "Given an internal representation and default parent uid build atomic ops from the internal
+  representation. `paste-block-parent-uid` is nil for the blocks that represent a page."
+  [db internal-representation paste-block-parent-uid]
+  (println "paste ops")
+  (let [[individual-blocks child-parent-map] (get-individual-blocks internal-representation)
+        all-atomic-ops                       (map #(let [block-uid (:block/uid %1)
+                                                         parent-uid (get child-parent-map block-uid
+                                                                         paste-block-parent-uid)
+                                                         atomic-ops (internal-repr->atomic-ops db
+                                                                                               %
+                                                                                               parent-uid)]
+                                                     atomic-ops)
+                                                  individual-blocks)
+        flattened                            (flatten all-atomic-ops)]
+    flattened))
 
-  ([db internal-representation]
-   (let [[individual-blocks child-parent-map] (get-individual-blocks internal-representation)
-         all-atomic-ops                       (map #(let [block-uid (:block/uid %1)
-                                                          ;; `parent-uid` is nil for the blocks that
-                                                          ;; represent a page. The assumption here is
-                                                          ;; that all the tree is internal-representation
-                                                          ;; are pages and not independant blocks.
-                                                          parent-uid (get child-parent-map block-uid
-                                                                          nil)
-                                                          atomic-ops (internal-repr->atomic-ops db
-                                                                                                %
-                                                                                                parent-uid)]
-                                                      atomic-ops)
-                                                   individual-blocks)
-         flattened                            (flatten all-atomic-ops)
-         block-paste-op (composite/make-consequence-op {:op-type :block/paste}
-                                                       flattened)]
-     block-paste-op))
-  ([db uid internal-representation]
+
+(defn build-paste-op-for-blocks
+  ([db internal-representation uid]
+   (println "build paste for copy paste" internal-representation)
    (let [current-block                        (common-db/get-block db [:block/uid uid])
          current-block-parent-uid             (:block/uid (common-db/get-parent db [:block/uid uid]))
          {:block/keys [order
@@ -129,20 +125,12 @@
                                                 :else                 (inc order))
          updated-order                        (map-indexed (fn [idx itm] (assoc itm :block/order (+ idx new-block-order)))
                                                            internal-representation)
-         [individual-blocks child-parent-map] (get-individual-blocks updated-order)
-         all-atomic-ops                       (map #(let [block-uid (:block/uid %1)
-                                                          parent-uid (get child-parent-map block-uid
-                                                                          current-block-parent-uid)
-                                                          atomic-ops (internal-repr->atomic-ops db
-                                                                                                %
-                                                                                                parent-uid)]
-                                                      atomic-ops)
-                                                   individual-blocks)
-         flattened                            (flatten all-atomic-ops)
+         all-atomic-ops                       (paste-ops-from-internal-representation db
+                                                                                      updated-order
+                                                                                      current-block-parent-uid)
          add-block-remove-op                  (if empty-block?
-                                                (conj flattened block-remove-op)
-                                                flattened)
-         block-paste-op (composite/make-consequence-op {:op-type :block/paste}
-                                                       add-block-remove-op)]
-     block-paste-op)))
+                                                (conj all-atomic-ops block-remove-op)
+                                                all-atomic-ops)]
+     (println "blocks for copy paste" add-block-remove-op)
+     add-block-remove-op)))
 

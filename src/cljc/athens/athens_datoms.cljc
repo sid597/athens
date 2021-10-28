@@ -7,8 +7,7 @@
 
 
 (def mini-datoms
-  [{:block/uid      "0"
-    :node/title     "Welcome"
+  [{:node/title     "Welcome"
     :page/sidebar   0
     :block/children [#:block{:uid      "block-1"
                              :string   "block with link to [[Welcome]]"
@@ -297,8 +296,9 @@
 
 
 (def welcome-event
-  (let [op (bfs/build-paste-op (datascript/empty-db common-db/schema)
-                               mini-datoms)
+  (let [op (bfs/paste-ops-from-internal-representation (datascript/empty-db common-db/schema)
+                                                       mini-datoms
+                                                       nil)
         event (common-events/build-atomic-event  0 op)]
     [(:event/id event)
      event]))

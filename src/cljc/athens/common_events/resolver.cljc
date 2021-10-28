@@ -2,12 +2,14 @@
   (:require
     [athens.common-db :as common-db]
     [athens.common-events :as common-events]
+    [athens.common-events.graph.composite :as composite]
     [athens.common.logging :as log]
     [athens.common.utils :as utils]
     [athens.patterns :as patterns]
     [clojure.set :as set]
     [clojure.string :as string]
-    [datascript.core :as d]))
+    [datascript.core :as d]
+    [athens.common-events.bfs :as bfs]))
 
 
 (defn between
@@ -1252,3 +1254,29 @@
     (log/debug "event-id:" id ", type:" type ", args:" (pr-str args)
                ", resolved-tx:" (pr-str tx-data))
     tx-data))
+
+
+(defmethod resolve-event-to-tx :datascript/paste-internal
+  [db {:event/keys [args]}]
+  ;; The internal representation for now is assumed to contain only pages or only blocks.
+  (let [{:keys [uid
+                internal-representation]} args
+        all-ops                           (if (-> internal-representation
+                                                  (first)
+                                                  (:node-title))
+                                            (bfs/paste-ops-from-internal-representation db
+                                                                                        internal-representation
+                                                                                        nil)
+                                            (bfs/build-paste-op-for-blocks db
+                                                                           internal-representation
+                                                                           uid))
+        block-paste-op                    (composite/make-consequence-op {:op-type :block/paste}
+                                                                         all-ops)
+        event                             (common-events/build-atomic-event (:remote/last-seen-tx db)
+                                                                            block-paste-op)]
+    (println "---------------------------------------------")
+    (cljs.pprint/pprint event)
+    event))
+
+
+

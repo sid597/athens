@@ -903,6 +903,8 @@
                                                  :new-string      value
                                                  :index           index})
           event (common-events/build-atomic-event (:remote/last-seen-tx db) op)]
+      (println "split block event is")
+      (cljs.pprint/pprint event)
       {:fx [[:dispatch-n [[:resolve-transact-forward event]
                           [:editing/uid (str new-uid (when embed-id
                                                        (str "-embed-" embed-id)))]]]]})))
@@ -1264,12 +1266,11 @@
   (fn [{:keys [db]} [_ uid internal-representation]]
     (println "internal representation is " internal-representation)
     (let [[uid]  (db/uid-and-embed-id uid)
-          op     (bfs/build-paste-op @db/dsdb
-                                     uid
-                                     internal-representation)
-          event  (common-events/build-atomic-event (:remote/last-seen-tx db) op)]
-      (log/debug "paste internal event is" event)
-      {:fx [[:dispatch [:resolve-transact-forward event]]]})))
+          paste-internal-event (common-events/build-paste-internal-event -1
+                                                                         uid
+                                                                         internal-representation)]
+      (println "paste internal event is " paste-internal-event)
+      {:fx [[:dispatch [:resolve-transact-forward paste-internal-event]]]})))
 
 
 (reg-event-fx
