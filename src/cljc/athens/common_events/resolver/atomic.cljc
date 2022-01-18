@@ -424,21 +424,31 @@
          target-order]                     (common-db/find-source-target-order db
                                                                                title
                                                                                ref-title)
-        new-source-order                   (if (and  (= :before relation)
-                                                     (< source-order target-order))
-                                             (dec target-order)
-                                             target-order)
+        ;; Up means it went from a higher number (e.g. 5) to a lower number (e.g. 2).
+        up?                                (> source-order target-order)
+        new-source-order                   (cond
+                                             (and  (= :before relation)
+                                                   (< source-order target-order)) (dec target-order)
+                                             (= :before relation)                 target-order
+                                             (and up?
+                                                  (= :after relation))            (inc target-order)
+                                             :else                                target-order)
         new-source                         [{:block/uid    source-uid
                                              :page/sidebar new-source-order}]
         new-target-order                   (cond
                                              (and  (= :before relation)
                                                    (< source-order target-order)) target-order
                                              (= :before relation)                 (dec target-order)
+                                             (and up?
+                                                  (= :after relation))            target-order
                                              :else                                (inc target-order))
-        inc-or-dec                         (if (and (= :before relation)
-                                                    (> source-order target-order))
-                                             inc
-                                             dec)
+        inc-or-dec                         (cond
+                                             (and (= :before relation)
+                                                  (> source-order target-order)) inc
+                                             (= :before relation)                dec
+                                             (and up?
+                                                  (= :after relation))           inc
+                                             :else                               dec)
         reindex                            (common-db/reindex-sidebar-after-move db
                                                                                  source-order
                                                                                  new-target-order
