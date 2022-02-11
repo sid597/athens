@@ -186,8 +186,10 @@
                :block/open
                :block/refs
                :block/_refs
+               :read 
                {:block/children [:block/uid
-                                 :block/order]}]
+                                 :block/order]}
+               ]
           eid))
 
 

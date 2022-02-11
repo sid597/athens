@@ -23,7 +23,8 @@
     :shortcut/new
     :shortcut/remove
     :shortcut/move
-    :composite/consequence})
+    :composite/consequence
+    :mark-as})
 
 
 ;; We use a lock to ensure the order of event log writes and database transacts matches

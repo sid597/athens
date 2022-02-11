@@ -79,6 +79,57 @@
         [updated-block]))))
 
 
+(defmethod resolve-atomic-op-to-tx :mark-as
+  [db {:op/keys [args]}]
+  (println "mark as atomic op")
+  ;; given a block uid and option to mark as read,
+  ;; mark this block and its children as read
+  (log/debug "atomic-resolver :mark-as args:" (pr-str args))
+  (let [uid                       (:block/uid args)
+        {action   :action
+         username :username}      (:useraction args)
+        read-by                   (:read (common-db/get-block db [:block/uid uid]))
+        read-by-nil               (nil? read-by)
+        already-read-by-user      (contains? read-by username)]
+    (println "=======")
+    (println "block args" (:block/uid args))  
+    (println "read-by" read-by)
+    (println "uid" uid "action" action "username" username)
+    (println "=======")
+
+    (cond
+      ;; If the user wants to mark block read but it is already read then don't do anything
+      (and (= action :read)
+           already-read-by-user)            (do
+                                              (println "------------------ action read ------=======")
+                                              (log/info ":This block is already read by the user")
+                                              [])
+      ;; If the user tries to
+      ;; - mark an unread block unread
+      ;; - mark a block unread on which the property does not exist
+      ;; for both cases don't do anything
+      (and (= action :unread)
+           (or read-by-nil
+               (not already-read-by-user)))  (do
+                                               (println "------------------ action read ------=======")
+                                               (log/info ":This block is already unread by the user")
+                                               [])
+      ;; If not the above cases then it could be that the :read property does not exist
+      ;; or user is doing a valid mark-as action
+      :else                                  (let [now           (utils/now-ts)
+                                                   mark-as-read  (cond
+                                                                   ;; If there is no read by property then create a new one and add the user
+                                                                   read-by-nil        #{username}
+                                                                   ;; If the action is to mark-as read and the set is already there then add user to the list
+                                                                   (= action :read)   (conj read-by username)
+                                                                   ;; If the action is to mark-as unread then remove the user from the list
+                                                                   (= action :unread) (disj read-by username))
+                                                   updated-block {:block/uid  uid
+                                                                  :read       mark-as-read
+                                                                  :edit/time  now}]
+                                               [updated-block]))))
+
+
 (defmethod resolve-atomic-op-to-tx :block/move
   [db {:op/keys [args]}]
   (log/debug "atomic-resolver :block/move args:" (pr-str args))

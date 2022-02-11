@@ -18,7 +18,8 @@
    :page/remove  ; ✓
    :shortcut/new
    :shortcut/remove
-   :shortcut/move])
+   :shortcut/move
+   :mark-as])
 
 
 ;; Identity
@@ -96,6 +97,19 @@
      block-id
      [:block/position block-position]]]])
 
+(def useraction
+  [:map
+   [:action   [:enum
+               :read
+               :to-read]]
+   [:username string?]])
+
+(def op-mark-as
+  [:map
+   [:op/args
+    [:map
+     block-id
+     [:useraction useraction]]]])
 
 ;; Page
 
@@ -193,7 +207,8 @@
                      [:shortcut/new    (with-common op-shortcut-new)]
                      [:shortcut/remove (with-common op-shortcut-remove)]
                      [:shortcut/move   (with-common op-shortcut-move)]
-                     [:composite/consequence [:ref ::composite-op]]]
+                     [:composite/consequence [:ref ::composite-op]]
+                     [:mark-as         (with-common op-mark-as)]]
      ::composite-op [:map
                      [:op/type [:enum :composite/consequence]]
                      [:op/atomic? false?]

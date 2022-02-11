@@ -57,6 +57,7 @@
   "Only option in context menu right now is copy block ref(s)."
   [_block state]
   (let [ref                  (atom nil)
+        username             @(rf/subscribe [:username])
         handle-click-outside (fn [e]
                                (when (and (:context-menu/show @state)
                                           (not (.. @ref (contains (.. e -target)))))
@@ -81,4 +82,8 @@
                                           "Copy block ref"
                                           "Copy block refs")]
                                        [:> Button {:on-mouse-down (fn [e] (handle-copy-unformatted e uid state))}
-                                        "Copy unformatted"]]])))})))
+                                        "Copy unformatted"]
+                                       [:> Button {:on-mouse-down (rf/dispatch [:mark-as {:block-uid uid
+                                                                                          :action    :read
+                                                                                          :username username}])}
+                                        "Mark as read"]]])))})))

@@ -67,14 +67,14 @@
     (.handle (:exit-fullscreen-win-channel ipcMainChannels)
              (fn []
                (when-let [active-win (.getFocusedWindow BrowserWindow)]
-                 (.setFullScreen active-win false)))))
+                 (.setFullScreen active-win false))))))
 
   ;; Future intent to refactor statup to use startup and teardown effects
   ;; Below is an example of the teardown effect for this init fn
   ;; #(doall (.removeHandler ipcMain toggle-max-or-min-win-channel)
   ;;         (.removeHandler ipcMain close-win-channel)
   ;;         (.removeHandler ipcMain exit-fullscreen-win-channel))
-  )
+
 
 
 (def quitting (atom false))

@@ -43,6 +43,15 @@
    :op/args    {:block/uid   block-uid
                 :block/open? open?}})
 
+(defn make-mark-as-op
+  "Creates `:mark-as` atomic op.
+   - `block-uid` - `:block/uid` of block to be opened/closed
+   - `open?` - should we open or close the block"
+  [block-uid useraction]
+  {:op/type    :mark-as
+   :op/atomic? true
+   :op/args    {:block/uid   block-uid
+                :useraction  useraction}})
 
 (defn make-block-remove-op
   "Creates `:block/remove` atomic op.
