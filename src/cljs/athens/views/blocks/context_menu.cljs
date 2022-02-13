@@ -83,7 +83,10 @@
                                           "Copy block refs")]
                                        [:> Button {:on-mouse-down (fn [e] (handle-copy-unformatted e uid state))}
                                         "Copy unformatted"]
-                                       [:> Button {:on-mouse-down (rf/dispatch [:mark-as {:block-uid uid
-                                                                                          :action    :read
-                                                                                          :username username}])}
+                                       [:> Button {:on-click (fn [e]
+                                                               (do 
+                                                                 (.. e preventDefault)
+                                                                 (rf/dispatch [:mark-as {:block-uid uid
+                                                                                         :action    :read
+                                                                                         :username  username}])))}
                                         "Mark as read"]]])))})))
