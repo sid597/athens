@@ -101,7 +101,7 @@
   [:map
    [:action   [:enum
                :read
-               :to-read]]
+               :unread]]
    [:username string?]])
 
 (def op-mark-as
