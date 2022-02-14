@@ -1425,11 +1425,13 @@
 
 (rf/reg-event-fx
   :mark-as
-  (fn [_ [_ {:keys [block-uid action username] :as args}]]
+  (fn [db [_ {:keys [block-uid action username] :as args}]]
     (log/debug ":mark-as args" args)
     (let [useraction {:username username
                       :action   action}
           event (common-events/build-atomic-event
                   (atomic-graph-ops/make-mark-as-op block-uid useraction))]
+      (println "mark as ops")
+      (graph-ops/build-mark-as-op db block-uid useraction)  
       (println "useraction is -->" useraction)
       {:fx [[:dispatch [:resolve-transact-forward event]]]})))

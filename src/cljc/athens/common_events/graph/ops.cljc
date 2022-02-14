@@ -172,4 +172,44 @@
                                                                    new-block-save-op]
                                                             children? (conj move-children-op)
                                                             children? (conj close-new-block-op)))]
-    split-block-op))
+    split-block-op))`
+
+(defn build-mark-as-op
+  "Creates mark-as ops for a block and its children"
+  [db block-uid useraction]
+  (let [uid                       (:block/uid args)
+        {action   :action
+         username :username}      (:useraction args)
+        read-by                   (:read (common-db/get-block db [:block/uid uid]))
+        read-by-nil               (nil? read-by)
+        already-read-by-user      (contains? read-by username)]
+    (cond
+      ;; If the user wants to mark block read but it is already read then don't do anything
+      (and (= action :read)
+           already-read-by-user)            (do
+                                              (log/info ":This block is already read by the user")
+                                              [])
+      ;; If the user tries to
+      ;; - mark an unread block unread
+      ;; - mark a block unread on which the property does not exist
+      ;; for both cases don't do anything
+      (and (= action :unread)
+           read-by-nil)                     (do
+                                               (log/info ":This block is already unread by the user")
+                                               [])
+      (and (= action :unread)
+           (not already-read-by-user)       (do
+                                               (log/info ":This block is already unread by the user")
+                                               []))
+      ;; Else this is a valid mark-as op
+      ;; for each child of current block check if it is marked as read if not then create an op for it  
+      :else                                 (->> (d/pull db common-db/block-document-pull-vector-for-copy [:block/uid block-uid])
+                                                  common-db/sort-block-children
+                                                  (walk/prewalk (fn [node] 
+                                                                  (let [read-by                   (:read (common-db/get-block db [:block/uid uid]))
+                                                                        read-by-nil               (nil? read-by)
+                                                                        already-read-by-user      (contains? read-by username)])               
+                                                                  (println "node" node)
+                                                                  )))
+      ))
+  )

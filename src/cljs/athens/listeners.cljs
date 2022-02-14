@@ -9,6 +9,7 @@
     [athens.util :as util]
     [clojure.string :as string]
     [goog.events :as events]
+    [datascript.core       :as d]
     [re-frame.core :refer [dispatch dispatch-sync subscribe]])
   (:import
     (goog.events

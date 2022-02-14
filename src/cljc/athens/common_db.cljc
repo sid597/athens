@@ -437,7 +437,6 @@
                            (reduce dissoc-on-match node remove-ks-on-match)
                            node))))))
 
-
 (defn get-linked-refs-by-page-title
   [db page-title]
   (->> (d/pull db '[* :block/_refs] [:node/title page-title])
