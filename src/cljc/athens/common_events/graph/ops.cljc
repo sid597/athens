@@ -3,6 +3,7 @@
   (:require
     [athens.common-db                     :as common-db]
     [athens.common-events.graph.atomic    :as atomic]
+    [athens.common.logging                :as log]
     [athens.common-events.graph.composite :as composite]
     [clojure.set                          :as set]))
 
@@ -172,44 +173,42 @@
                                                                    new-block-save-op]
                                                             children? (conj move-children-op)
                                                             children? (conj close-new-block-op)))]
-    split-block-op))`
+    split-block-op))
 
 (defn build-mark-as-op
   "Creates mark-as ops for a block and its children"
-  [db block-uid useraction]
-  (let [uid                       (:block/uid args)
+  [db uid useraction]
+  (let [
         {action   :action
-         username :username}      (:useraction args)
+         username :username}      useraction
         read-by                   (:read (common-db/get-block db [:block/uid uid]))
         read-by-nil               (nil? read-by)
         already-read-by-user      (contains? read-by username)]
+    
     (cond
       ;; If the user wants to mark block read but it is already read then don't do anything
       (and (= action :read)
-           already-read-by-user)            (do
-                                              (log/info ":This block is already read by the user")
-                                              [])
+           already-read-by-user)            [(str "This block is already read by the user:  " username) []]
       ;; If the user tries to
       ;; - mark an unread block unread
       ;; - mark a block unread on which the property does not exist
       ;; for both cases don't do anything
-      (and (= action :unread)
-           read-by-nil)                     (do
-                                               (log/info ":This block is already unread by the user")
-                                               [])
-      (and (= action :unread)
-           (not already-read-by-user)       (do
-                                               (log/info ":This block is already unread by the user")
-                                               []))
+      (or
+        (and (= action :unread)
+           read-by-nil)                     
+        (and (= action :unread)
+           (not already-read-by-user)))     [(str "This block is already unread by the user: " username) []]
       ;; Else this is a valid mark-as op
       ;; for each child of current block check if it is marked as read if not then create an op for it  
-      :else                                 (->> (d/pull db common-db/block-document-pull-vector-for-copy [:block/uid block-uid])
-                                                  common-db/sort-block-children
-                                                  (walk/prewalk (fn [node] 
-                                                                  (let [read-by                   (:read (common-db/get-block db [:block/uid uid]))
-                                                                        read-by-nil               (nil? read-by)
-                                                                        already-read-by-user      (contains? read-by username)])               
-                                                                  (println "node" node)
-                                                                  )))
+      :else                                 ["Marking block as read" (composite/make-consequence-op {:op/type :mark-as}
+                                                                               (mapv (fn [uid]
+                                                                                       (let [read-by                  (:read (common-db/get-block db [:block/uid uid]))
+                                                                                             read-by-nil               (nil? read-by)
+                                                                                             already-read-by-user      (contains? read-by username)]
+                                                                                           (if (not already-read-by-user)
+                                                                                              (do
+                                                                                                (println "Marking block" uid "as" action "for user" username)
+                                                                                                (atomic/make-mark-as-op uid useraction)))))
+                                                                                      (common-db/get-children-uids-recursively db uid))) ]     
       ))
   )

@@ -30,6 +30,7 @@
     [goog.dom :refer [getElement]]
     [malli.core                           :as m]
     [malli.error                          :as me]
+    [clojure.walk          :as walk]
     [re-frame.core :as rf :refer [reg-event-db reg-event-fx subscribe]]))
 
 
@@ -1425,13 +1426,13 @@
 
 (rf/reg-event-fx
   :mark-as
-  (fn [db [_ {:keys [block-uid action username] :as args}]]
+  (fn [{:keys [db]} [_ {:keys [block-uid action username] :as args}]]
     (log/debug ":mark-as args" args)
-    (let [useraction {:username username
-                      :action   action}
-          event (common-events/build-atomic-event
-                  (atomic-graph-ops/make-mark-as-op block-uid useraction))]
-      (println "mark as ops")
-      (graph-ops/build-mark-as-op db block-uid useraction)  
-      (println "useraction is -->" useraction)
-      {:fx [[:dispatch [:resolve-transact-forward event]]]})))
+    (let [useraction  {:username username
+                       :action   action}
+          [msg mark-as-ops] (graph-ops/build-mark-as-op @db/dsdb block-uid useraction)
+          event       (common-events/build-atomic-event
+                        mark-as-ops)]
+      (if (empty? mark-as-ops)
+         (log/info msg)
+         {:fx [[:dispatch [:resolve-transact-forward event]]]}))))

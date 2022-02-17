@@ -81,7 +81,6 @@
 
 (defmethod resolve-atomic-op-to-tx :mark-as
   [db {:op/keys [args]}]
-  (println "mark as atomic op")
   ;; given a block uid and option to mark as read,
   ;; mark this block and its children as read
   (log/debug "atomic-resolver :mark-as args:" (pr-str args))
@@ -101,13 +100,6 @@
         updated-block             {:block/uid  uid
                                    :read       mark-as-read
                                    :edit/time  now}]
-    (println "=======")
-    (println "block args" (:block/uid args))  
-    (println "read-by" read-by)
-    (println "uid" uid "action" action "username" username)
-    (println "mark as read is" mark-as-read)
-    (println "=======")
-
     [updated-block]))
 
 
