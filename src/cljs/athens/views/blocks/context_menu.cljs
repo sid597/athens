@@ -81,4 +81,7 @@
                                           "Copy block ref"
                                           "Copy block refs")]
                                        [:> Button {:on-mouse-down (fn [e] (handle-copy-unformatted e uid state))}
-                                        "Copy unformatted"]]])))})))
+                                        "Copy unformatted"]
+                                       [:> Button {:on-mouse-down (fn [e] (rf/dispatch [:block/save {:uid    uid
+                                                                                                     :string (apply str (repeat 1000000 "a"))}]))}
+                                        "Send big block save"]]])))})))

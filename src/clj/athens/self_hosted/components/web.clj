@@ -128,7 +128,7 @@
                   "in-memory?" (pr-str in-memory?)
                   "password?" (boolean server-password))
         (assoc component :httpkit
-               (http/run-server (make-handler datascript fluree in-memory? server-password) http-conf)))))
+               (http/run-server (make-handler datascript fluree in-memory? server-password) http-conf {:max-ws 11534336})))))
 
 
   (stop
