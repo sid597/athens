@@ -11,6 +11,11 @@
     [fluree.db.api :as fdb]))
 
 
+(defn exit
+  [status msg]
+  (println msg)
+  (System/exit status))
+
 (defn save-log
   [args]
   (let [{:keys [fluree-address
@@ -66,12 +71,61 @@
             (async/<!! (async/timeout 50))))))))
 
 
+(defn get-log-with-multiple-of-x
+  [args]
+  (let [{:keys [fluree-address
+                filename
+                x-events
+                save-location
+                stop-after]}    args
+        comp                    (fluree-comp/create-fluree-comp fluree-address)
+        conn                    (-> comp
+                                    :conn-atom
+                                    deref)
+        previous-events         (edn/read-string (slurp filename))
+        ledger-exists?          (seq  @(fdb/ledger-info conn event-log/ledger))
+        progress                (atom 0)]
+    (println x-events save-location)
+
+    ;; Delete the current ledger
+    (if ledger-exists?
+      (do
+        @(fdb/delete-ledger conn
+                            event-log/ledger)
+        (log/warn "Please restart the fluree docker."))
+      ;; Create the ledger again
+      (do
+        (event-log/ensure-ledger! comp [])
+        (doseq [[id data] previous-events]
+          (swap! progress inc)
+          (log/info "Processing" (str "#" @progress) id)
+          (event-log/add-event! comp id data 5000 10000)
+          (if (= 0 (rem @progress x-events))
+            (do (log/info "Pausing for 15s after " x-events " events")
+                (async/<!! (async/timeout 15000))
+                (log/info "Saving the current log ====")
+                (save-log {:fluree-address fluree-address
+                           :filename       (str save-location @progress)})
+                (log/info "Current log saved ===="))
+            (async/<!! (async/timeout 50)))
+          (if (= @progress stop-after)
+              (exit 1 (str "Processed " stop-after " so stopping the load"))))))))
+
+
 (def cli-options
   ;; An option with a required argument
   [["-a" "--fluree-address ADDRESS" "Fluree address"
     :default "http://localhost:8090"]
    ["-f" "--filename FILENAME" "Name of the file to be saved or loaded"
     :default []]
+   ["-sl" "--save-location SAVELOCATION" "Location where to save the files for `get-log-with-multiple-of-x`"
+    :default "/tmp/athens/"]
+   ["-x" "--x-events XEVENTS" "Timeout/save log after loading `x` events"
+    :default 1000
+    :parse-fn #(Integer/parseInt %)]
+   ["-s" "--stop-after STOPAFTER" "Stop loading events after ..."
+    :default 1000
+    :parse-fn #(Integer/parseInt %)]
    ["-h" "--help"]])
 
 
@@ -112,16 +166,10 @@
       errors                    {:exit-message (error-msg errors)}
       ;; custom validation on arguments
       (and (= 1 (count arguments))
-           (#{"save" "load" "recover"}
+           (#{"save" "load" "recover" "get-x-events-log"}
             (first arguments))) {:action (first arguments) :options options}
       ;; failed custom validation => exit with usage summary
       :else                     {:exit-message (usage summary)})))
-
-
-(defn exit
-  [status msg]
-  (println msg)
-  (System/exit status))
 
 
 (defn -main
@@ -133,5 +181,6 @@
         (case action
           "save"    (save-log options)
           "load"    (load-log options)
-          "recover" (recover-log options))
+          "recover" (recover-log options)
+          "get-x-events-log" (get-log-with-multiple-of-x options))
         (System/exit 0)))))

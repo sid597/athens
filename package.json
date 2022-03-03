@@ -58,6 +58,7 @@
     "// cli scripts": "",
     "cli:save": "clojure -M:athens-cli save",
     "cli:load": "clojure -M:athens-cli load",
+    "cli:get-x-events": "clojure -M:athens-cli get-x-events-log",
     "cli:recover": "clojure -M:athens-cli recover",
     "cli:compile": "clojure -M -e \"(compile 'athens.self-hosted.save-load)\"",
     "cli:uberjar": "clojure -M:uberdeps --aliases compiled-classes --main-class athens.self-hosted.save-load --target target/athens-cli.jar"
