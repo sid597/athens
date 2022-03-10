@@ -25,7 +25,7 @@
     (fn [uid]
       (let [username @(rf/subscribe [:username])]
         [:div
-         [textinput/textinput {:placeholder "Add a comment..." :style {:width "90%"
+         [textinput/textinput {:placeholder "Add a comment..." :style {:width "88%"
                                                                        :margin "10px"}
                                :on-change   (fn [e] (reset! comment-string (.. e -target -value)))
                                :value       @comment-string
