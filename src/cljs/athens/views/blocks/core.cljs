@@ -504,6 +504,10 @@
           [autocomplete-search/inline-search-el block state]
           [autocomplete-slash/slash-menu-el block state]
 
+
+          (when @(rf/subscribe [:comment/show-comment-textarea? uid])
+            [right-side/right-side-comments [] uid])
+
           ;; Inline refs
           (when (and (> (count _refs) 0)
                      (not= :block-embed? opts)
