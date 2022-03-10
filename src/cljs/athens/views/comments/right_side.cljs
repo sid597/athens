@@ -3,7 +3,11 @@
             [athens.views.textinput :as textinput]
             ["/components/Button/Button" :refer [Button]]
             ["/components/Input/Input" :refer [Input]]
-            [re-frame.core :as rf]))
+            [re-frame.core :as rf]
+            [athens.views.blocks.textarea-keydown :as textarea-keydown])
+  (:import
+    (goog.events
+      KeyCodes)))
 
 
 (def right-side-comments-styles
@@ -18,6 +22,8 @@
   {:padding "5px 0 5px 0"})
 
 
+
+
 (defn comment-textarea
   [uid]
   (let [comment-string (reagent.core/atom "")]
@@ -26,14 +32,18 @@
         [:div
          [textinput/textinput {:placeholder "Add a comment..." :style {:width "100%"}
                                :on-change (fn [e] (reset! comment-string (.. e -target -value)))
-                               :value @comment-string}]
+                               :value @comment-string
+                               :on-key-down  (fn [e]
+                                               (when (= (.. e -keyCode) KeyCodes.ENTER)
+                                                   (re-frame.core/dispatch [:comment/write-comment uid @comment-string username])
+                                                   (re-frame.core/dispatch [:comment/hide-comment-textarea])
+                                                   (reset! comment-string nil)))}]
          [:> Button {:style    {:float "right"}
                      :on-click (fn [_]
                                  (re-frame.core/dispatch [:comment/write-comment uid @comment-string username])
                                  (re-frame.core/dispatch [:comment/hide-comment-textarea])
                                  (reset! comment-string nil))}
           "Send"]]))))
-
 
 (defn right-side-comments
   [data uid]
