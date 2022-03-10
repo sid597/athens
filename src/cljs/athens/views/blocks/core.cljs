@@ -390,7 +390,6 @@
   ([block linked-ref-data]
    [block-el block linked-ref-data {}])
   ([block linked-ref-data _opts]
-   (println "block el block is ----> " block)
    (let [{:keys [linked-ref initial-open linked-ref-uid parent-uids]} linked-ref-data
          {:block/keys [uid original-uid]} block
          state (r/atom {:string/local       nil
@@ -437,7 +436,6 @@
              is-selected           @(rf/subscribe [::select-subs/selected? uid])
              present-user          @(rf/subscribe [:presence/has-presence uid])
              is-presence           (seq present-user)]
-         ;(println "block has comments? " comment)
 
          ;; (prn uid is-selected)
 
@@ -512,15 +510,15 @@
                      (:inline-refs/open @state))
             [inline-linked-refs-el state uid])
 
-          #_(when (= uid "72adc4063")
-              [inline-comments/inline-comments comments/mock-data-with-author-and-time])
-            ;;[inline-comments/inline-comments comments/mock-data])
+          ;; show inline comments
+          (when comment
+            [inline-comments/inline-comments comment])
 
-          (when @(rf/subscribe [:comment/show-comment-textarea? uid])
-            [right-side/right-side-comments [] uid])
+          ;; right side comments
+          (when comment
+            [right-side/right-side-comments comment uid])
 
-          #_(when (= uid "72adc4063")
-              [right-side/right-side-comments comments/mock-data])
+          
 
           ;; Children
           (when (and (seq children)

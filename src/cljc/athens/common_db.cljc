@@ -183,7 +183,7 @@
                  :block/open
                  :block/refs
                  :block/_refs
-                 :comment
+                 :block/comment
                  {:block/children [:block/uid
                                    :block/order]}]
             eid)))

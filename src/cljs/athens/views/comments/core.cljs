@@ -45,10 +45,9 @@
 
 (rf/reg-event-fx
   :comment/write-comment
-  (fn [_ [_ uid comment-string username]]
-    (println "comment/write-comment" "uid" uid "comment-string" comment-string "username" username)
+  (fn [_ [_ uid comment-string author]]
     (let [new-comment     {:string    comment-string
-                           :username  username
+                           :author    author
                            :time      "12:09 pm"}
           event           (common-events/build-atomic-event
                             (atomic-graph-ops/make-comment-add-op uid new-comment))]

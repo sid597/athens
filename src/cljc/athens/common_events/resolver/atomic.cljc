@@ -221,13 +221,13 @@
   [db {:op/keys [args]}]
   (let [uid                 (:block/uid args)
         new-comment         (:new-comment args)
-        block-has-comments  (:comment (common-db/get-block db [:block/uid uid]))
+        block-has-comments  (:block/comment (common-db/get-block db [:block/uid uid]))
         comment-vec         (if (seq block-has-comments)
                               (conj block-has-comments new-comment)
                               [new-comment])
-        updated-block       {:block/uid uid
-                             :comment   comment-vec
-                             :edit/time (utils/now-ts)}]
+        updated-block       {:block/uid      uid
+                             :block/comment  comment-vec
+                             :edit/time      (utils/now-ts)}]
     [updated-block]))
 
 
