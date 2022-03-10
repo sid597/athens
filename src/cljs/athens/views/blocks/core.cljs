@@ -390,6 +390,7 @@
   ([block linked-ref-data]
    [block-el block linked-ref-data {}])
   ([block linked-ref-data _opts]
+   (println "block el block is ----> " block)
    (let [{:keys [linked-ref initial-open linked-ref-uid parent-uids]} linked-ref-data
          {:block/keys [uid original-uid]} block
          state (r/atom {:string/local       nil
@@ -423,6 +424,7 @@
                            string
                            open
                            children
+                           comment
                            _refs]} (merge (reactive/get-reactive-block-document ident) block)
              children-uids         (set (map :block/uid children))
              uid-sanitized-block   (s/transform
@@ -435,6 +437,7 @@
              is-selected           @(rf/subscribe [::select-subs/selected? uid])
              present-user          @(rf/subscribe [:presence/has-presence uid])
              is-presence           (seq present-user)]
+         ;(println "block has comments? " comment)
 
          ;; (prn uid is-selected)
 
