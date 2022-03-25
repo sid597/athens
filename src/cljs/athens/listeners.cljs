@@ -215,30 +215,35 @@
   [^js e]
   (let [uids @(subscribe [::select-subs/items])]
     (when (not-empty uids)
-      (let [copy-data          (->> uids
-                                    (map #(common-db/get-block-document @db/dsdb [:block/uid %]))
-                                    (map #(blocks-to-clipboard-data 0 %))
-                                    (apply str))
-            clipboard-data     (.. e -event_ -clipboardData)
-            copied-blocks      (mapv
-                                 #(common-db/get-internal-representation  @db/dsdb [:block/uid %])
-                                 uids)
-            comment-to-blocks  (remove nil? (mapv
-                                              #(let [comments  (:block/comment %)
-                                                     uid       (:block/uid %)
-                                                     block-str (str "((" uid "))")
-                                                     children  (comment->block-children comments)]
-                                                 (when comments
-                                                   {:block/uid      (utils/gen-block-uid)
-                                                    :block/string   block-str
-                                                    :block/children children}))
-                                              copied-blocks))
-            comment-block      {:block/uid      (utils/gen-block-uid)
-                                :block/string   "Poor man's version of comments :)"
-                                :block/children comment-to-blocks}
-            all-blocks         (when (not-empty comment-to-blocks)
-                                 (conj copied-blocks
-                                       comment-block))]
+      (let [copy-data                   (->> uids
+                                             (map #(common-db/get-block-document @db/dsdb [:block/uid %]))
+                                             (map #(blocks-to-clipboard-data 0 %))
+                                             (apply str))
+            clipboard-data              (.. e -event_ -clipboardData)
+            copied-blocks               (mapv
+                                          #(common-db/get-internal-representation  @db/dsdb [:block/uid %])
+                                          uids)
+            children-of-copied-blocks   (first (map
+                                                 #(common-db/get-children-uids-recursively @db/dsdb %)
+                                                 uids))
+            comment-to-blocks           (remove nil? (mapv
+                                                       #(let [block     (common-db/get-internal-representation @db/dsdb [:block/uid %])
+                                                              comments  (:block/comment block)
+                                                              uid       %
+                                                              block-str (str "((" uid "))")
+                                                              children  (comment->block-children comments)]
+
+                                                          (when comments
+                                                            {:block/uid      (utils/gen-block-uid)
+                                                             :block/string   block-str
+                                                             :block/children children}))
+                                                       children-of-copied-blocks))
+            comment-block               {:block/uid      (utils/gen-block-uid)
+                                         :block/string   "Poor man's version of comments :)"
+                                         :block/children comment-to-blocks}
+            all-blocks                  (when (not-empty comment-to-blocks)
+                                          (conj copied-blocks
+                                                comment-block))]
 
         (doto clipboard-data
           (.setData "text/plain" copy-data)
