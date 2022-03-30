@@ -1492,7 +1492,8 @@
                          (atomic-graph-ops/make-block-move-op source-uid
                                                               {:block/uid target-uid
                                                                :relation target-rel}))]
-      {:fx [[:dispatch [:resolve-transact-forward atomic-event]]]})))
+      {:fx [[:dispatch [:resolve-transact-forward atomic-event]]
+            [:dispatch [:discord/move-ticket source-uid target-uid]]]})))
 
 
 (reg-event-fx

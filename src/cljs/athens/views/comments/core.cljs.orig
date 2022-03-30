@@ -102,14 +102,62 @@
           full-url                  (.. js/window -location -href)
           base-url                  (first (clojure.string/split full-url "#"))
           block-parent-url          (str base-url "#/page/" uid)
-          mention-athens-team       (str "<@&" "858004385215938560" ">")
+          ;;mention-athens-team       (str "<@&" "858004385215938560" ">")
           message                   {"message"
-                                     (str author " wrote a comment: " "\"" comment-string "\"" " — " block-parent-url " — " mention-athens-team)}]
+<<<<<<< Updated upstream
+                                     (str author " wrote a comment: " "\"" comment-string "\"" " — " block-parent-url #_#_" — " mention-athens-team)}]
+=======
+                                     (str author " wrote a comment: " "\"" comment-string "\"" " — " block-parent-url)}]
+      (println "sending message" message)
+>>>>>>> Stashed changes
       {:fx [[:dispatch [:resolve-transact-forward event]]
             [:dispatch [:posthog/report-feature "comments"]]
-            [:dispatch [:notification/send message]]]})))
+            [:dispatch [:prepare-message uid author :comment {:comment/string comment-string}]]]})))
 
 
+(rf/reg-event-fx
+  :prepare-message
+  (fn [_ [_ uid author action action-data]]
+    "action-data for:
+    Comments: comment string)
+    Mention:  mention who, mention message)
+    Board:    move state, block content"
+    (println "prepare message" uid author action action-data
+             (:comment/string action-data))
+    (let [full-url                  (.. js/window -location -href)
+          base-url                  (first (clojure.string/split full-url "#"))
+          block-parent-url          (str base-url "#/page/" uid)
+          mention-athens-team       (str "<@&" "858004385215938560]" ">")
+          message                   {"message"
+                                     (cond
+                                       (= action
+                                          :comment) (str author " wrote a comment: " "\""
+                                                         (:comment/string action-data)
+                                                         "\"" " — " block-parent-url)
+                                       ; " — " mention-athens-team)
+                                       (= action
+                                          :mention) (str "mentioned")
+                                       (= action
+                                          :board)   (str "board movement"))}]
+      (println "message" message)
+      {:fx [:dispatch [:notification/send ""]]})))
+
+
+
+(rf/reg-event-fx
+  :notification/send
+  (fn [_ [_ message]]
+    (println "send notification")
+    {:discord-bot message}))
+
+(rf/reg-fx
+  :discord-bot
+  (fn [message]
+    (println "discord bot")
+    (go (let [response (<! (http/post "https://3txhfpivzk.execute-api.us-east-2.amazonaws.com/Prod/hello/"
+                                      {:query-params message}))]
+          (prn  (:body response))) ;; print the response's body in the console
+        {})))
 
 
 (rf/reg-sub
