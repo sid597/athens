@@ -79,16 +79,6 @@
 
 
 (rf/reg-event-fx
-  :notification/send-to-athens
-  (fn [{:keys [db]} [_ parent sender receivers ref]]
-    (let [notif-ops        (create-notifs-ops db parent sender receivers ref)
-          notification-op  (composite/make-consequence-op {:op/type :notification}
-                                                          notif-ops)
-          event            (common-events/build-atomic-event notification-op)]
-      {:fx [[:dispatch [:resolve-transact-forward event]]]})))
-
-
-(rf/reg-event-fx
   :check-for-mentions
   (fn [{:keys [db]} [_ uid block-string author]]
     (let [block-parent         (common-db/get-parent @db/dsdb [:block/uid uid])
@@ -193,10 +183,32 @@
 
 
 (rf/reg-event-fx
+  :notification/send-to-athens
+  (fn [{:keys [db]} [_ parent sender receivers ref]]
+    (let [notif-ops        (create-notifs-ops db parent sender receivers ref)
+          notification-op  (composite/make-consequence-op {:op/type :notification}
+                                                          notif-ops)
+          event            (common-events/build-atomic-event notification-op)]
+      {:fx [[:dispatch [:resolve-transact-forward event]]]})))
+
+
+(rf/reg-event-fx
   :notification/send-to-discord
   (fn [_ [_ message]]
     (println "send notification" message)
     {:discord-bot message}))
+
+
+(rf/reg-event-fx
+  :notification/take-to-user-page
+  (fn [_ _]
+    (let [current-user  @(rf/subscribe [:username])
+          userpage      (str "@" current-user)
+          page-uid      (common-db/get-page-uid @db/dsdb userpage)]
+      (println "Notifications?"(pos-int? (count (common-db/get-children-uids @db/dsdb [:block/uid (first (common-db/get-children-uids @db/dsdb [:node/title userpage]))]))))
+      (println "Notifications?"(count (common-db/get-children-uids @db/dsdb [:block/uid (first (common-db/get-children-uids @db/dsdb [:node/title userpage]))])))
+      {:fx [[:dispatch [:navigate :page {:id page-uid}]]]})))
+
 
 (rf/reg-fx
   :discord-bot
@@ -206,3 +218,10 @@
                                       {:query-params message}))]
           (prn  (:body response))) ;; print the response's body in the console
         {})))
+
+(rf/reg-sub
+  :notification/show-notif-alert?
+  (fn [_ _]
+    (let [userpage (str "@" @(rf/subscribe [:username]))
+          notif?   (pos-int? (count (common-db/get-children-uids @db/dsdb [:block/uid (first (common-db/get-children-uids @db/dsdb [:node/title userpage]))])))]
+      notif?)))
