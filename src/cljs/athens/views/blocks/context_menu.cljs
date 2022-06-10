@@ -41,6 +41,7 @@
 (defn handle-click-comment
   [e uid state]
   (re-frame.core/dispatch [:comment/show-comment-textarea uid])
+  (re-frame.core/dispatch [:new-thread uid])
   (.. e preventDefault)
   (swap! state assoc :context-menu/show false))
 

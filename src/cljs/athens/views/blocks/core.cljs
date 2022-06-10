@@ -389,7 +389,7 @@
                                               {:children "Copy unformatted text"
                                                :onClick #(handle-copy-unformatted uid)}
                                               (when (empty? selected-items)
-                                                {:children "Comment"
+                                                {:children "New comment thread"
                                                  :onClick  (fn [e] (handle-click-comment e uid state))})])
                        :onClick        (fn [e]
                                          (let [shift? (.-shiftKey e)]
@@ -424,15 +424,23 @@
             [inline-linked-refs-el state uid])
 
           ;; Comments textarea
-          (when @(rf/subscribe [:comment/show-comment-textarea? uid])
-            [inline-comments/inline-comments [] uid false])
+          #_(when @(rf/subscribe [:comment/show-comment-textarea? uid])
+              [inline-comments/inline-comments [] uid false])
 
           ;; Show comments when the toggle is on
           (when (and @(rf/subscribe [:comment/show-inline-comments?])
                      comment-thread-uid?)
-            [inline-comments/inline-comments (comments/get-comments-in-thread @db/dsdb comment-thread-uid?) uid true])
+            (let [all-threads (comments/get-all-threads @db/dsdb comment-thread-uid?)]
+              (for [thread all-threads]
+                ^{:key thread}
+                (let [comments-in-threads  (comments/get-comments-in-thread @db/dsdb (:block/uid thread))
+                      thread-uid           (:block/uid thread)]
+                  (if (> (count comments-in-threads) 0)
+                    [inline-comments/inline-comments comments-in-threads thread-uid true]
+                    [inline-comments/inline-comments comments-in-threads thread-uid false])))))
 
-          ;; Children
+
+;; Children
           (when (and (seq children)
                      (or (and (true? linked-ref) (:linked-ref/open @state))
                          (and (false? linked-ref) open)))

@@ -55,6 +55,10 @@
        :block/children
        (map thread-child->comment)))
 
+(defn get-all-threads
+  [db thread-of-threads-uid]
+  (->> (common-db/get-block-document db [:block/uid thread-of-threads-uid])
+       :block/children))
 
 (defn get-comment-thread-uid
   [db parent-block-uid]
@@ -82,16 +86,33 @@
 
 
 (rf/reg-event-fx
+  :new-thread
+  (fn [_ [_ block-uid]]
+
+   (let [threads-exist?  (get-comment-thread-uid @db/dsdb block-uid)
+         threads-uid      (or threads-exist?
+                              (common.utils/gen-block-uid))
+         new-thread-op    [(->> (bfs/internal-representation->atomic-ops @db/dsdb
+                                                                         [#:block{:uid (common.utils/gen-block-uid)
+                                                                                  :string ""}]
+                                                                         {:block/uid threads-uid
+                                                                          :relation  :last})
+                                (composite/make-consequence-op {:op/type :new-thread}))]
+         threads-op       (composite/make-consequence-op {:op/type :threads-op}
+                                                         (concat (if threads-exist?
+                                                                   []
+                                                                   [(graph-ops/build-block-new-op @db/dsdb threads-uid {:block/uid block-uid
+                                                                                                                        :relation  {:page/title ":comment/threads"}})])
+                                                                 new-thread-op))
+         event        (common-events/build-atomic-event threads-op)]
+     {:fx [[:dispatch [:resolve-transact-forward event]]]})))
+
+
+(rf/reg-event-fx
   :comment/write-comment
-  (fn [{db :db} [_ uid comment-string author]]
-    (let [thread-exists?            (get-comment-thread-uid @db/dsdb uid)
-          thread-uid                (or thread-exists?
-                                        (common.utils/gen-block-uid))
+  (fn [{db :db} [_ thread-uid comment-string author]]
+    (let [
           active-comment-ops        (composite/make-consequence-op {:op/type :active-comments-op}
-                                                                   (concat (if thread-exists?
-                                                                             []
-                                                                             [(graph-ops/build-block-new-op @db/dsdb thread-uid {:block/uid uid
-                                                                                                                                 :relation  {:page/title ":comment/threads"}})])
-                                                                           [(new-comment @db/dsdb  thread-uid comment-string author "12:09 pm")]))
+                                                                   [(new-comment @db/dsdb  thread-uid comment-string author "12:09 pm")])
           event                     (common-events/build-atomic-event active-comment-ops)]
       {:fx [[:dispatch [:resolve-transact-forward event]]]})))

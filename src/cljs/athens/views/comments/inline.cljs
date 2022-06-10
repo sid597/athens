@@ -115,12 +115,12 @@
 
 
 (defn inline-comments
-  [data uid hide?]
+  [data thread-uid hide?]
   (let [state        (reagent.core/atom {:hide? hide?})
         num-comments (count data)
         first-comment (first data)
         {:keys [author string time]} first-comment]
-    (fn [data uid]
+    (fn [data ]
       [:<>
        ;; add time, author, and preview
        [:div {}
@@ -144,4 +144,4 @@
           (for [item data]
             ^{:key item}
             [comment-el item])
-          [inline-comment-textarea uid]])])))
+          [inline-comment-textarea thread-uid]])])))
