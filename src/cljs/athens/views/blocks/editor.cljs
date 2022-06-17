@@ -4,6 +4,11 @@
     ["/components/Block/Toggle"                :refer [Toggle]]
     ["/components/References/InlineReferences" :refer [ReferenceGroup ReferenceBlock]]
     ["@chakra-ui/react"                        :refer [VStack Button Breadcrumb BreadcrumbItem BreadcrumbLink HStack]]
+    ["/components/Block/Reactions"             :refer [Reactions]]
+    ["/components/EmojiPicker/EmojiPicker"   :refer [EmojiPickerPopover]]
+    [athens.common-db                        :as common-db]
+    [athens.common-events.graph.ops          :as graph-ops]
+    [athens.common.utils                     :as utils]
     [athens.db                                 :as db]
     [athens.events.inline-refs                 :as inline-refs.events]
     [athens.events.linked-refs                 :as linked-ref.events]
@@ -145,6 +150,32 @@
                 [:> ReferenceBlock {:key (str "ref-" (:block/uid block'))}
                  [ref-comp block-el block']]))]))])))
 
+;; TODO: removing last user on an emoji should remove the emoji
+;; TODO: removing the last emoji reaction should remove the :reactions/emojis prop
+;; TODO: when we have time as first class, there's no need to save the timestamp as block string
+;; TODO: store time prop for both reaction and user-id, use for sorting (doesn't sort reaction yet)
+(defn toggle-reaction
+  "Toggle reaction on block uid. Does nothing if there's no user.
+  Stores emojis in the [:reactions/emojis reaction user-id] property path. "
+  [id reaction user-id]
+  (rf/dispatch [:properties/update-in id [":reactions" reaction user-id]
+                (fn [db prop-uid]
+                  [(if (common-db/get-block db [:block/uid prop-uid])
+                     (graph-ops/build-block-remove-op @db/dsdb prop-uid)
+                     (graph-ops/build-block-save-op db prop-uid (str (utils/now-ts))))])]))
+
+
+(defn props->reactions
+  [props]
+  (->> (get props ":reactions")
+       :block/properties
+       (mapv (fn [[k {props :block/properties}]]
+               [k (->> props
+                       (map (fn [[user-id {timestamp :block/string}]]
+                              [timestamp user-id]))
+                       (sort-by first)
+                       (mapv second))]))))
+
 
 (defn editor-component
   [block-el block-o children? linked-ref-data uid-sanitized-block state-hooks opts]
@@ -159,7 +190,15 @@
       (let [{:block/keys [;; uid
                           open
                           children
-                          _refs]} (reactive/get-reactive-block-document [:block/uid uid])]
+                          properties
+                          _refs]} (reactive/get-reactive-block-document [:block/uid uid])
+            present-user          @(rf/subscribe [:presence/has-presence uid])
+            is-presence           (seq present-user)
+            ;; TODO: user-id for presence users is their username, TDB what it is for real auth users.
+            ;; TODO: what should happen for local or in-memory db? there's no presence, atm it's hardcoded to "stuart"
+            user-id               (or (:username @(rf/subscribe [:presence/current-user]))
+                                      "stuart")
+            reactions             (props->reactions properties)]
         [:<>
          [:div.block-body
           (when (and children?
@@ -198,6 +237,10 @@
                       :on-drag-end            (fn [e] (bullet-drag-end e uid))}]
 
           [content/block-content-el block-o state-hooks]
+
+          (when reactions [:> Reactions {:reactions (clj->js reactions)
+                                         :currentUser user-id
+                                         :onToggleReaction (partial toggle-reaction [:block/uid uid])}])
 
           [presence/inline-presence-el uid]
 

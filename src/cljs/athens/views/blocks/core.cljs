@@ -1,37 +1,166 @@
 (ns athens.views.blocks.core
   (:require
+    ["/components/Block/Anchor"              :refer [Anchor]]
     ["/components/Block/Container"           :refer [Container]]
-    ["@chakra-ui/react"                      :refer [MenuList MenuItem]]
+    ["/components/Block/Reactions"           :refer [Reactions]]
+    ["/components/Block/Toggle"              :refer [Toggle]]
+    ["/components/EmojiPicker/EmojiPicker"   :refer [EmojiPickerPopover]]
+    ["/components/References/InlineReferences" :refer [ReferenceGroup ReferenceBlock]]
+    ["@chakra-ui/react" :refer [VStack Button Breadcrumb BreadcrumbItem BreadcrumbLink HStack]]
+    [athens.common-db                        :as common-db]
+    [athens.common-events.graph.ops          :as graph-ops]
     [athens.common.logging                   :as log]
+    [athens.common.utils                     :as utils]
     [athens.db                               :as db]
     [athens.electron.images                  :as images]
     [athens.electron.utils                   :as electron.utils]
-    [athens.events.dragging                  :as drag.events]
-    [athens.events.inline-refs               :as inline-refs.events]
-    [athens.events.linked-refs               :as linked-ref.events]
     [athens.events.selection                 :as select-events]
+    [athens.parse-renderer                   :as parse-renderer]
     [athens.reactive                         :as reactive]
-    [athens.subs.dragging                    :as drag.subs]
+    [athens.router                           :as router]
+    [athens.self-hosted.presence.views       :as presence]
     [athens.subs.selection                   :as select-subs]
     [athens.util                             :as util :refer [mouse-offset vertical-center specter-recursive-path]]
-    [athens.views.blocks.context-menu        :as ctx-menu]
+    [athens.views.blocks.autocomplete-search :as autocomplete-search]
+    [athens.views.blocks.autocomplete-slash  :as autocomplete-slash]
+    [athens.views.blocks.bullet              :refer [bullet-drag-start bullet-drag-end]]
+    [athens.views.blocks.content             :as content]
+    [athens.views.blocks.context-menu        :refer [handle-copy-unformatted handle-copy-refs]]
     [athens.views.blocks.drop-area-indicator :as drop-area-indicator]
-    [athens.views.blocks.editor              :as editor]
     [com.rpl.specter                         :as s]
     [goog.functions                          :as gfns]
     [re-frame.core                           :as rf]
-    [reagent.core                            :as r]
-    [reagent.ratom                           :as ratom]))
+    [reagent.core                            :as r]))
+
+
+;; Inline refs
+
+;; block-el depends on inline-linked-refs-el, which in turn depends on block-el
+;; It would be nicer to have inline refs code in a different file, but it's
+;; much easier to resolve the circular dependency if they are on the same one.
+(declare block-el)
+
+
+(defn ref-comp
+  [block parent-state]
+  (let [orig-uid        (:block/uid block)
+        state           (r/cursor parent-state [:inline-refs/states orig-uid])
+        has-children?   (-> block :block/children boolean)
+        parents         (cond-> (:block/parents block)
+                          ;; If the ref has children, move it to breadcrumbs and show children.
+                          has-children? (conj block))
+        ;; Reset state on parent each time the component is created.
+        ;; To clear state, open/close the inline refs.
+        _               (reset! state {:block     block
+                                       :embed-id  (random-uuid)
+                                       :open?     true
+                                       :parents   parents
+                                       :focus?    (not has-children?)})
+        linked-ref-data {:linked-ref     true
+                         :initial-open   false
+                         :linked-ref-uid (:block/uid block)
+                         :parent-uids    (set (map :block/uid (:block/parents block)))}]
+    (fn [_]
+      (let [{:keys [block parents embed-id]} @state
+            block (reactive/get-reactive-block-document (:db/id block))]
+        [:<>
+         [:> HStack {:lineHeight "1"}
+          [:> Toggle {:isOpen (:open? @state)
+                      :on-click (fn [e]
+                                  (.. e stopPropagation)
+                                  (swap! state update :open? not))}]
+
+          [:> Breadcrumb {:fontSize "xs" :color "foreground.secondary"}
+           (doall
+             (for [{:keys [node/title block/string block/uid] :as breadcrumb-block}
+                   (if (or (:open? @state) (not (:focus? @state)))
+                     parents
+                     (conj parents block))]
+               [:> BreadcrumbItem {:key (str "breadcrumb-" uid)}
+                [:> BreadcrumbLink {:onClick (fn [e]
+                                               (let [shift? (.-shiftKey e)]
+                                                 (rf/dispatch [:reporting/navigation {:source :block-bullet
+                                                                                      :target :block
+                                                                                      :pane   (if shift?
+                                                                                                :right-pane
+                                                                                                :main-pane)}])
+                                                 (let [new-B (db/get-block [:block/uid uid])
+                                                       new-P (concat
+                                                               (take-while (fn [b] (not= (:block/uid b) uid)) parents)
+                                                               [breadcrumb-block])]
+                                                   (.. e stopPropagation)
+                                                   (swap! state assoc :block new-B :parents new-P :focus? false))))}
+                 [parse-renderer/parse-and-render (or title string) uid]]]))]]
+
+         (when (:open? @state)
+           (if (:focus? @state)
+
+             ;; Display the single child block only when focusing.
+             ;; This is the default behaviour for a ref without children, for brevity.
+             [:div.block-embed {:fontSize "0.7em"}
+              [block-el
+               (util/recursively-modify-block-for-embed block embed-id)
+               linked-ref-data
+               {:block-embed? true}]]
+
+
+             ;; Otherwise display children of the parent directly.
+             (for [child (:block/children block)]
+               [:<> {:key (:db/id child)}
+                [block-el
+                 (util/recursively-modify-block-for-embed child embed-id)
+                 linked-ref-data
+                 {:block-embed? true}]])))]))))
+
+
+(defn inline-linked-refs-el
+  [state uid]
+  (let [refs (reactive/get-reactive-linked-references [:block/uid uid])]
+    (when (not-empty refs)
+      [:> VStack {:as "aside"
+                  :align "stretch"
+                  :spacing 3
+                  :key "Inline Linked References"
+                  :zIndex 2
+                  :ml 8
+                  :pl 4
+                  :p2 2
+                  :borderRadius "md"
+                  :background "background.basement"}
+       (doall
+         (for [[group-title group] refs]
+           [:> ReferenceGroup {:title group-title
+                               :key (str "group-" group-title)}
+            (doall
+              (for [block' group]
+                [:> ReferenceBlock {:key (str "ref-" (:block/uid block'))}
+                 [ref-comp block' state]]))]))])))
 
 
 ;; Components
+
+(defn block-refs-count-el
+  [count click-fn active?]
+  [:> Button {:gridArea "refs"
+              :size "xs"
+              :ml "1em"
+              :mt 1
+              :mr 1
+              :zIndex 10
+              :visibility (if (pos? count) "visible" "hidden")
+              :isActive active?
+              :onClick (fn [e]
+                         (.. e stopPropagation)
+                         (click-fn e))}
+   count])
+
 
 (defn block-drag-over
   "If block or ancestor has CSS dragging class, do not show drop indicator; do not allow block to drop onto itself.
   If above midpoint, show drop indicator above block.
   If no children and over X pixels from the left, show child drop indicator.
   If below midpoint, show drop indicator below."
-  [e block]
+  [e block state]
   (.. e preventDefault)
   (.. e stopPropagation)
   (let [{:block/keys [children
@@ -47,16 +176,14 @@
                                dragging?           nil
                                is-selected?        nil
                                (or (neg? y)
-                                   (< y middle-y)) :before
+                                   (< y middle-y))         :before
                                (and (< middle-y y)
-                                    (> 50 x))      :after
+                                    (> 50 x))              :after
                                (or (not open)
                                    (and (empty? children)
-                                        (< 50 x))) :first)
-        prev-target          @(rf/subscribe [::drag.subs/drag-target uid])]
-    (when (and target
-               (not= prev-target target))
-      (rf/dispatch [::drag.events/set-drag-target! uid target]))))
+                                        (< 50 x)))         :first)]
+    (when target
+      (swap! state assoc :drag-target target))))
 
 
 (defn drop-bullet
@@ -230,6 +357,7 @@
                            :isOpen       open
                            :isLinkedRef  (and (false? initial-open) (= uid linked-ref-uid))
                            :hasPresence  is-presence
+                           :actions      (clj->js [(r/as-element [:> EmojiPickerPopover {:onEmojiSelected (fn [e] js/console.log e)}])])
                            :uid          uid
                            ;; need to know children for selection resolution
                            :childrenUids children-uids
