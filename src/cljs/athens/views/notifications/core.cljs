@@ -14,7 +14,7 @@
 
 
 (defn create-notif-message
-  [{:keys [notification-type notification-trigger-uid notification-trigger-parent notification-trigger-author] :as _opts}]
+  [{:keys [notification-type notification-trigger-uid notification-trigger-parent notification-for-user notification-trigger-author] :as _opts}]
   (cond
     (= notification-type  "athens/notification/type/comment")
     (str "**" notification-trigger-author "** " "commented on: " "**((" notification-trigger-parent "))**" "\n"
@@ -27,7 +27,7 @@
     (str "**" notification-trigger-author "** " "assigned you task: " "***((" notification-trigger-uid "))***")
 
     (= notification-type "task/created")
-    (str "You created a task: " "***((" notification-trigger-uid "))***")))
+    (str "You assigned a new task: " "***((" notification-trigger-uid "))*** to " notification-for-user )))
 
 
 (defn new-notification
