@@ -5,9 +5,7 @@ import { RightSidebarResizeControl } from "./RightSidebarResizeControl";
 import { XmarkIcon, ChevronDownVariableIcon, ArrowLeftOnBoxIcon } from '@/Icons/Icons';
 import { Flex, ButtonGroup, Button, Text, IconButton, Box, Collapse, VStack, BoxProps, Tooltip } from '@chakra-ui/react';
 import { useInView } from 'react-intersection-observer';
-
-/** Right Sidebar */
-
+import { ErrorBoundary } from "react-error-boundary";
 
 interface RightSidebarProps extends BoxProps {
   isOpen: boolean;
@@ -97,9 +95,65 @@ export const RightSidebar = (props: RightSidebarProps) => {
   );
 };
 
-export const SidebarItem = ({ title, type, isOpen, onToggle, onRemove, onNavigate, children }) => {
-  const className = { "page": "node-page", "block": "block-page", "graph": "graph-page" }[type];
+
+export const SidebarItemBody = ({ isOpen, children }) => {
+  return <Box
+    as={Collapse}
+    in={isOpen}
+    animateOpacity
+    unmountOnExit
+    zIndex={1}
+    px={4}
+    sx={{
+      // HACK: Gentle hack to create padding
+      // within the collapse container, only
+      // when open
+      "> *:last-child": {
+        mb: 2,
+      }
+    }}
+    onPointerDown={(e) => { e.stopPropagation(); }}
+  >
+    {children}
+  </Box>;
+}
+SidebarItemBody.defaultProps = {
+  isOpen: true,
+}
+
+export const SidebarItemHeader = ({ children }) => {
+  return <Flex
+    alignItems="center"
+    justifyContent="center"
+  >{children}</Flex>
+};
+
+const SidebarItemFallback = ({ error, resetErrorBoundary }) => {
   return (
+    <Box
+      bg="background.floor"
+      border="1px solid"
+      borderColor="separator.divider"
+      borderRadius="md"
+      p={2}
+      mx={4}
+      mt={2}
+      mb={4}
+    >
+      <Text mb={2}>An error occurred while rendering this sidebar item.</Text>
+      <ButtonGroup size="xs">
+        <Button
+          onClick={resetErrorBoundary}
+        >Try again</Button>
+        <Button
+        >Report issue</Button>
+      </ButtonGroup>
+    </Box>
+  );
+}
+
+export const SidebarItemContainer = ({ children, ...props }) => {
+  return <ErrorBoundary FallbackComponent={SidebarItemFallback}>
     <VStack
       bg="background.upper"
       borderRadius="md"
@@ -114,53 +168,82 @@ export const SidebarItem = ({ title, type, isOpen, onToggle, onRemove, onNavigat
         "--page-right-gutter-width": "3em",
       }}
       mt={2}
-    >
-      <Flex
-        alignItems="center"
-        justifyContent="center"
-      >
-        <Button
-          onClick={onToggle}
-          colorScheme="subtle"
-          justifyContent="flex-start"
-          variant="ghost"
-          size="sm"
-          display="flex"
-          flex="1 1 100%"
-          borderRadius="0"
-          gap={2}
-          p={2}
-          px={4}
-          pr={20}
-          height="auto"
-          textAlign="left"
-          overflow="hidden"
-          whiteSpace="nowrap"
-          leftIcon={<ChevronDownVariableIcon
-            boxSize={4}
-            mr={-2}
-            transform={isOpen ? undefined : "rotate(-90deg)"}
-            transitionProperty="common"
-            transitionDuration="0.15s"
-            transitionTimingFunction="ease-in-out"
-            justifySelf="center" />}
+      {...props}>
+      {children}
+    </VStack>
+  </ErrorBoundary>
+};
+
+export const SidebarItemHeaderToggle = ({ children, isOpen, onToggle, ...props }) => {
+  return <Button
+    isDisabled={!onToggle}
+    onClick={onToggle}
+    colorScheme="subtle"
+    justifyContent="flex-start"
+    variant="ghost"
+    size="sm"
+    display="flex"
+    flex="1 1 100%"
+    borderRadius="0"
+    gap={2}
+    p={2}
+    px={4}
+    pr={20}
+    height="auto"
+    textAlign="left"
+    overflow="hidden"
+    whiteSpace="nowrap"
+    leftIcon={onToggle ? <ChevronDownVariableIcon
+      boxSize={4}
+      mr={-2}
+      transform={isOpen ? undefined : "rotate(-90deg)"}
+      transitionProperty="common"
+      transitionDuration="0.15s"
+      transitionTimingFunction="ease-in-out"
+      justifySelf="center" /> : null}
+  >
+    {children}
+  </Button>
+};
+SidebarItemHeaderToggle.defaultProps = {
+  isOpen: true,
+}
+
+
+export const SidebarItemTitle = ({ children, ...props }) => {
+  return <Text
+    noOfLines={0}
+    overflow="hidden"
+    textOverflow="ellipsis"
+  >{children}</Text>
+};
+
+
+export const SidebarItemButtonGroup = ({ children, ...props }) => {
+  return <ButtonGroup
+    colorScheme="subtle"
+    variant="ghost"
+    size="xs"
+    position="absolute"
+    right={0}
+    top={0}
+    px={2}
+    py={1}
+  >{children}</ButtonGroup>
+};
+
+export const SidebarItem = ({ title, isOpen, onToggle, onRemove, onNavigate, children }) => {
+  return (
+    <SidebarItemContainer>
+      <SidebarItemHeader>
+        <SidebarItemHeaderToggle
+          onToggle={onToggle}
+          isOpen={isOpen}
         >
-          <Text
-            noOfLines={0}
-            overflow="hidden"
-            textOverflow="ellipsis"
-          >{title}</Text>
-        </Button>
-        <ButtonGroup
-          colorScheme="subtle"
-          variant="ghost"
-          size="xs"
-          position="absolute"
-          right={0}
-          top={0}
-          px={2}
-          py={1}
-        >
+          <SidebarItemTitle
+          >{title}</SidebarItemTitle>
+        </SidebarItemHeaderToggle>
+        <SidebarItemButtonGroup>
           <Tooltip label="Open">
             <IconButton
               onClick={onNavigate}
@@ -175,28 +258,9 @@ export const SidebarItem = ({ title, type, isOpen, onToggle, onRemove, onNavigat
               icon={<XmarkIcon />}
             />
           </Tooltip>
-        </ButtonGroup>
-      </Flex>
-      <Box
-        as={Collapse}
-        in={isOpen}
-        className={className}
-        animateOpacity
-        unmountOnExit
-        zIndex={1}
-        px={4}
-        sx={{
-          // HACK: Gentle hack to create padding
-          // within the collapse container, only
-          // when open
-          "> *:last-child": {
-            mb: 2,
-          }
-        }}
-        onPointerDown={(e) => { e.stopPropagation() }}
-      >
-        {children}
-      </Box>
-    </VStack >
+        </SidebarItemButtonGroup>
+      </SidebarItemHeader>
+      <SidebarItemBody isOpen={isOpen}>{children}</SidebarItemBody>
+    </SidebarItemContainer>
   );
 };

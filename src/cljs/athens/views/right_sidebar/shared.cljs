@@ -112,7 +112,7 @@
                :onNavigate (if (= type "page")
                              #(router/navigate-page title %)
                              #(router/navigate-uid uid %))
-               :title      entity-title
+               :title      (str "Preview – "entity-title)
                :children   (r/as-element (cond
                                            (= type "graph") [graph/page name]
                                            (= type "page")  [node-page/page eid]
