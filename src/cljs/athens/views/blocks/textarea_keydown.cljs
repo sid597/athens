@@ -206,9 +206,24 @@
    (let [{:keys [start head]} (destruct-target target)
          [caption _ expansion _ pos] item
          expand    (if (fn? expansion) (expansion) expansion)
+         value (.. target -value)
+         [start1 end] (get-end-points target)
+         selection (getText target)
+         head1 (subs value 0 start)
+         tail (subs value end)
          ;; the regex is evaluated greedily, yielding the last
          ;; occurrence in head (head = text up to cursor)
          start-idx (dec (count (re-find #"(?s).*/" head)))]
+     (println "start" start "/n"
+              "start1" start1 "/n"
+              "head"  head  "/n"
+              "head1" head1 "/n"
+              "caption" caption "/n"
+              "expand"  expand  "/n"
+              "value" value "/n"
+              "selection" selection "/n"
+              "tail"   tail "/n"
+              "start-idx" start-idx "/n")
      (rf/dispatch [::inline-search.events/close! block-uid])
 
      (set-selection target start-idx start)
