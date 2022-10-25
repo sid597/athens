@@ -128,8 +128,8 @@
 ;; - Highlight
 (def highlight-mark
   {:hightlight {:toDOM     #()
-                :parseDOM  #()
-                :inclusive}})
+                :parseDOM  #()}})
+
 ;; - Underline
 (def underline-mark
   {:underline {:toDOM     #(["u" 0])
