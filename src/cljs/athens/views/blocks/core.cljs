@@ -36,6 +36,7 @@
     ["react"                                   :as react]
     ["react-intersection-observer"             :refer [useInView]]
     [athens.common-db                          :as common-db]
+    [athens.prosemirror.core                   :refer [pview]]
     [athens.common-events.graph.ops            :as graph-ops]
     [athens.common.logging                     :as log]
     [athens.db                                 :as db]
@@ -597,6 +598,7 @@
              ^{:key renderer-k}
              [types/outline-view renderer block {:show-edit? is-hovered-not-child?}]]
 
+            (.view js/window pview)
             (when (and in-view? reactions-enabled? reactions)
               [:> Reactions {:reactions        (clj->js reactions)
                              :currentUser      user-id
